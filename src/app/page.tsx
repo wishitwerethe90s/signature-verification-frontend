@@ -1,7 +1,7 @@
 // src/app/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Container,
   Typography,
@@ -14,14 +14,16 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { v4 as uuidv4 } from "uuid"; // Use a library to generate unique IDs
+import { v4 as uuidv4 } from "uuid";
 import {
   cleanSignatures,
   matchSignatures,
   SignatureImage,
   MatchApiResponse,
 } from "@/services/api";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 
+// Styled component for a visually hidden file input
 const VisuallyHiddenInput = styled("input")({
   clip: "rect(0 0 0 0)",
   clipPath: "inset(50%)",
@@ -34,26 +36,32 @@ const VisuallyHiddenInput = styled("input")({
   width: 1,
 });
 
+// Styled component for the main container of each signature pane
 const ImageContainer = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
   textAlign: "center",
   color: theme.palette.text.secondary,
   height: "100%",
+  width: "100%",
   display: "flex",
   flexDirection: "column",
-  justifyContent: "center",
+  justifyContent: "flex-start", // Align items to the top
   alignItems: "center",
   gap: theme.spacing(2),
+  // minHeight: "450px", // Set a min-height to ensure panes are equal
+  // width: "50%",
 }));
 
+// Styled component for the image previews
 const SignatureImagePreview = styled("img")({
   maxWidth: "100%",
-  maxHeight: "200px",
+  maxHeight: "150px", // Adjusted max-height for better spacing
+  objectFit: "contain",
   border: "1px solid #ddd",
   borderRadius: "4px",
 });
 
-// Helper function to read file as base64
+// Helper function to read a file and convert it to a base64 string
 const toBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -62,9 +70,15 @@ const toBase64 = (file: File): Promise<string> =>
     reader.onerror = (error) => reject(error);
   });
 
+// New interface to hold both the image data and its "dirty" state
+interface SignatureState {
+  image: SignatureImage;
+  dirty: boolean;
+}
+
 export default function HomePage() {
-  const [sig1, setSig1] = useState<SignatureImage | null>(null);
-  const [sig2, setSig2] = useState<SignatureImage | null>(null);
+  const [sig1, setSig1] = useState<SignatureState | null>(null);
+  const [sig2, setSig2] = useState<SignatureState | null>(null);
 
   const [cleanedSig1, setCleanedSig1] = useState<SignatureImage | null>(null);
   const [cleanedSig2, setCleanedSig2] = useState<SignatureImage | null>(null);
@@ -72,6 +86,12 @@ export default function HomePage() {
   const [matchResult, setMatchResult] = useState<MatchApiResponse | null>(null);
   const [isLoading, setIsLoading] = useState({ clean: false, match: false });
   const [error, setError] = useState<string | null>(null);
+
+  // Memoized value to determine if the clean button should be enabled
+  const isCleanEnabled = useMemo(() => {
+    // Enable if either signature exists and is marked as dirty
+    return (sig1?.dirty || sig2?.dirty) ?? false;
+  }, [sig1, sig2]);
 
   const handleFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -82,7 +102,11 @@ export default function HomePage() {
 
     try {
       const base64 = await toBase64(file);
-      const newSignature: SignatureImage = { id: uuidv4(), data: base64 };
+      const newSignature: SignatureState = {
+        image: { id: uuidv4(), data: base64 },
+        dirty: true, // Mark as dirty on new upload
+      };
+
       if (signatureNumber === 1) {
         setSig1(newSignature);
         setCleanedSig1(null); // Reset cleaned image on new upload
@@ -90,22 +114,29 @@ export default function HomePage() {
         setSig2(newSignature);
         setCleanedSig2(null); // Reset cleaned image on new upload
       }
-      setMatchResult(null); // Reset match result
+      setMatchResult(null); // Reset any previous match result
       setError(null);
     } catch (err) {
       setError("Failed to read file.");
+      console.error(err);
     }
   };
 
   const handleClean = async () => {
-    if (!sig1 && !sig2) {
-      setError("Please upload at least one signature to clean.");
-      return;
+    // Collect only the "dirty" images that need cleaning
+    const imagesToClean: SignatureImage[] = [];
+    if (sig1?.dirty) {
+      imagesToClean.push(sig1.image);
+    }
+    if (sig2?.dirty) {
+      imagesToClean.push(sig2.image);
     }
 
-    const imagesToClean: SignatureImage[] = [sig1, sig2].filter(
-      Boolean
-    ) as SignatureImage[];
+    if (imagesToClean.length === 0) {
+      // This case should ideally not be reachable due to the button's disabled state, but it's good practice.
+      setError("No new signatures to clean.");
+      return;
+    }
 
     setIsLoading((prev) => ({ ...prev, clean: true }));
     setError(null);
@@ -113,8 +144,15 @@ export default function HomePage() {
     try {
       const response = await cleanSignatures(imagesToClean);
       response.cleaned_images.forEach((cleanedImg) => {
-        if (cleanedImg.id === sig1?.id) setCleanedSig1(cleanedImg);
-        if (cleanedImg.id === sig2?.id) setCleanedSig2(cleanedImg);
+        // Update cleaned image previews and reset dirty flags
+        if (cleanedImg.id === sig1?.image.id) {
+          setCleanedSig1(cleanedImg);
+          setSig1((s) => (s ? { ...s, dirty: false } : null));
+        }
+        if (cleanedImg.id === sig2?.image.id) {
+          setCleanedSig2(cleanedImg);
+          setSig2((s) => (s ? { ...s, dirty: false } : null));
+        }
       });
     } catch (err) {
       setError(
@@ -156,12 +194,13 @@ export default function HomePage() {
       </Typography>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      {/* CHANGE 1: Added justifyContent="center" and alignItems="stretch" to center the grid items and make them equal height */}
+      <Grid container spacing={3} justifyContent="center" alignItems="stretch">
         {/* Signature 1 Pane */}
         <Grid item xs={12} md={6}>
           <ImageContainer>
@@ -174,12 +213,17 @@ export default function HomePage() {
                 onChange={(e) => handleFileChange(e, 1)}
               />
             </Button>
+
             {sig1 && (
               <SignatureImagePreview
-                src={sig1.data}
+                src={sig1.image.data}
                 alt="Original Signature 1"
               />
             )}
+
+            {/* CHANGE 3: Add a downward arrow as a visual separator */}
+            {sig1 && cleanedSig1 && <ArrowDownwardIcon color="action" />}
+
             {cleanedSig1 && (
               <SignatureImagePreview
                 src={cleanedSig1.data}
@@ -201,12 +245,17 @@ export default function HomePage() {
                 onChange={(e) => handleFileChange(e, 2)}
               />
             </Button>
+
             {sig2 && (
               <SignatureImagePreview
-                src={sig2.data}
+                src={sig2.image.data}
                 alt="Original Signature 2"
               />
             )}
+
+            {/* CHANGE 3: Add a downward arrow as a visual separator */}
+            {sig2 && cleanedSig2 && <ArrowDownwardIcon color="action" />}
+
             {cleanedSig2 && (
               <SignatureImagePreview
                 src={cleanedSig2.data}
@@ -222,7 +271,8 @@ export default function HomePage() {
           variant="contained"
           color="secondary"
           onClick={handleClean}
-          disabled={(!sig1 && !sig2) || isLoading.clean}
+          // CHANGE 3: Button is disabled if loading or if no signatures are "dirty"
+          disabled={!isCleanEnabled || isLoading.clean}
           startIcon={
             isLoading.clean ? (
               <CircularProgress size={20} color="inherit" />
@@ -250,7 +300,7 @@ export default function HomePage() {
       </Box>
 
       {matchResult && (
-        <Paper sx={{ p: 3, mt: 3 }}>
+        <Paper sx={{ p: 3, mt: 3, mx: "auto", maxWidth: "md" }}>
           <Typography variant="h5" align="center" gutterBottom>
             Comparison Result
           </Typography>
@@ -265,11 +315,14 @@ export default function HomePage() {
             Result: {matchResult.match.toUpperCase()}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Typography variant="body1">Similarity Score:</Typography>
+            <Typography variant="body1" sx={{ whiteSpace: "nowrap" }}>
+              Similarity Score:
+            </Typography>
             <LinearProgress
               variant="determinate"
               value={matchResult.similarity_score * 100}
               sx={{ width: "100%", height: 10, borderRadius: 5 }}
+              color={matchResult.match === "match" ? "success" : "error"}
             />
             <Typography variant="body1">
               {(matchResult.similarity_score * 100).toFixed(2)}%
