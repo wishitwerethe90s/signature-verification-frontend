@@ -5,13 +5,13 @@ import React, { useState, useMemo } from "react";
 import {
   Container,
   Typography,
-  Grid,
   Paper,
   Button,
   Box,
   LinearProgress,
   Alert,
   CircularProgress,
+  Stack,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { v4 as uuidv4 } from "uuid";
@@ -42,20 +42,30 @@ const ImageContainer = styled(Paper)(({ theme }) => ({
   textAlign: "center",
   color: theme.palette.text.secondary,
   height: "100%",
-  width: "100%",
+  width: "100%", // Take full width of the Grid item
   display: "flex",
   flexDirection: "column",
-  justifyContent: "flex-start", // Align items to the top
+  justifyContent: "flex-start",
   alignItems: "center",
   gap: theme.spacing(2),
-  // minHeight: "450px", // Set a min-height to ensure panes are equal
-  // width: "50%",
+  minHeight: "450px", // Ensure consistent minimum height
+  boxSizing: "border-box", // Include padding in width calculation
 }));
+
+// Container for centering content within each Grid item
+const ContentContainer = styled(Box)({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "16px",
+  width: "100%",
+  maxWidth: "400px", // Cap the content width for better layout
+});
 
 // Styled component for the image previews
 const SignatureImagePreview = styled("img")({
   maxWidth: "100%",
-  maxHeight: "150px", // Adjusted max-height for better spacing
+  maxHeight: "150px",
   objectFit: "contain",
   border: "1px solid #ddd",
   borderRadius: "4px",
@@ -199,79 +209,91 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {/* CHANGE 1: Added justifyContent="center" and alignItems="stretch" to center the grid items and make them equal height */}
-      <Grid container spacing={3} justifyContent="center" alignItems="stretch">
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={3}
+        sx={{
+          justifyContent: "center",
+          alignItems: "stretch",
+          "& > *": {
+            flex: { xs: "1 1 auto", md: "1 1 50%" },
+            width: { xs: "100%", md: "50%" },
+            minWidth: 0, // Prevent flex items from overflowing
+          },
+        }}
+      >
         {/* Signature 1 Pane */}
-        <Grid item xs={12} md={6}>
+        <Box>
           <ImageContainer>
-            <Typography variant="h6">Signature 1</Typography>
-            <Button component="label" variant="contained">
-              Upload Original
-              <VisuallyHiddenInput
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleFileChange(e, 1)}
-              />
-            </Button>
+            <ContentContainer>
+              <Typography variant="h6">Signature 1</Typography>
+              <Button component="label" variant="contained">
+                Upload Original
+                <VisuallyHiddenInput
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(e, 1)}
+                />
+              </Button>
 
-            {sig1 && (
-              <SignatureImagePreview
-                src={sig1.image.data}
-                alt="Original Signature 1"
-              />
-            )}
+              {sig1 && (
+                <SignatureImagePreview
+                  src={sig1.image.data}
+                  alt="Original Signature 1"
+                />
+              )}
 
-            {/* CHANGE 3: Add a downward arrow as a visual separator */}
-            {sig1 && cleanedSig1 && <ArrowDownwardIcon color="action" />}
+              {sig1 && cleanedSig1 && <ArrowDownwardIcon color="action" />}
 
-            {cleanedSig1 && (
-              <SignatureImagePreview
-                src={cleanedSig1.data}
-                alt="Cleaned Signature 1"
-              />
-            )}
+              {cleanedSig1 && (
+                <SignatureImagePreview
+                  src={cleanedSig1.data}
+                  alt="Cleaned Signature 1"
+                />
+              )}
+            </ContentContainer>
           </ImageContainer>
-        </Grid>
+        </Box>
 
         {/* Signature 2 Pane */}
-        <Grid item xs={12} md={6}>
+        <Box>
           <ImageContainer>
-            <Typography variant="h6">Signature 2</Typography>
-            <Button component="label" variant="contained">
-              Upload Original
-              <VisuallyHiddenInput
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleFileChange(e, 2)}
-              />
-            </Button>
+            <ContentContainer>
+              <Typography variant="h6">Signature 2</Typography>
+              <Button component="label" variant="contained">
+                Upload Original
+                <VisuallyHiddenInput
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(e, 2)}
+                />
+              </Button>
 
-            {sig2 && (
-              <SignatureImagePreview
-                src={sig2.image.data}
-                alt="Original Signature 2"
-              />
-            )}
+              {sig2 && (
+                <SignatureImagePreview
+                  src={sig2.image.data}
+                  alt="Original Signature 2"
+                />
+              )}
 
-            {/* CHANGE 3: Add a downward arrow as a visual separator */}
-            {sig2 && cleanedSig2 && <ArrowDownwardIcon color="action" />}
+              {sig2 && cleanedSig2 && <ArrowDownwardIcon color="action" />}
 
-            {cleanedSig2 && (
-              <SignatureImagePreview
-                src={cleanedSig2.data}
-                alt="Cleaned Signature 2"
-              />
-            )}
+              {cleanedSig2 && (
+                <SignatureImagePreview
+                  src={cleanedSig2.data}
+                  alt="Cleaned Signature 2"
+                />
+              )}
+            </ContentContainer>
           </ImageContainer>
-        </Grid>
-      </Grid>
+        </Box>
+      </Stack>
 
       <Box textAlign="center" my={3}>
         <Button
           variant="contained"
           color="secondary"
           onClick={handleClean}
-          // CHANGE 3: Button is disabled if loading or if no signatures are "dirty"
           disabled={!isCleanEnabled || isLoading.clean}
           startIcon={
             isLoading.clean ? (
